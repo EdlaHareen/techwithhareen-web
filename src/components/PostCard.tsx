@@ -1,6 +1,7 @@
 import { useState } from "react"
 import type { Post } from "../lib/api"
 import { approvePost, rejectPost, updateCaption } from "../lib/api"
+import SlideEditorModal from "./SlideEditorModal"
 
 interface Props {
   post: Post
@@ -14,6 +15,8 @@ export default function PostCard({ post, onUpdate }: Props) {
   const [loading, setLoading] = useState<"approve" | "reject" | "caption" | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [activeSlide, setActiveSlide] = useState(0)
+  const [slides, setSlides] = useState(post.slides)
+  const [showSlideEditor, setShowSlideEditor] = useState(false)
 
   const isPending = post.status === "pending"
 
@@ -88,15 +91,15 @@ export default function PostCard({ post, onUpdate }: Props) {
       </div>
 
       {/* Slides */}
-      {post.slides.length > 0 && (
+      {slides.length > 0 && (
         <div className="bg-gray-50 p-4">
           <div className="relative aspect-square max-h-64 mx-auto rounded-lg overflow-hidden bg-gray-200">
             <img
-              src={post.slides[activeSlide]}
+              src={slides[activeSlide]}
               alt={`Slide ${activeSlide + 1}`}
               className="w-full h-full object-cover"
             />
-            {post.slides.length > 1 && (
+            {slides.length > 1 && (
               <>
                 <button
                   onClick={() => setActiveSlide((s) => Math.max(0, s - 1))}
@@ -107,9 +110,9 @@ export default function PostCard({ post, onUpdate }: Props) {
                 </button>
                 <button
                   onClick={() =>
-                    setActiveSlide((s) => Math.min(post.slides.length - 1, s + 1))
+                    setActiveSlide((s) => Math.min(slides.length - 1, s + 1))
                   }
-                  disabled={activeSlide === post.slides.length - 1}
+                  disabled={activeSlide === slides.length - 1}
                   className="absolute right-2 top-1/2 -translate-y-1/2 bg-black/40 text-white rounded-full w-7 h-7 flex items-center justify-center text-sm disabled:opacity-30 hover:bg-black/60 transition-colors"
                 >
                   ›
@@ -117,21 +120,44 @@ export default function PostCard({ post, onUpdate }: Props) {
               </>
             )}
           </div>
-          {/* Dot indicators */}
-          {post.slides.length > 1 && (
-            <div className="flex justify-center gap-1 mt-2">
-              {post.slides.map((_, i) => (
-                <button
-                  key={i}
-                  onClick={() => setActiveSlide(i)}
-                  className={`w-1.5 h-1.5 rounded-full transition-colors ${
-                    i === activeSlide ? "bg-gray-700" : "bg-gray-300"
-                  }`}
-                />
-              ))}
-            </div>
-          )}
+          {/* Dot indicators + Edit button */}
+          <div className="flex items-center justify-between mt-2">
+            {slides.length > 1 ? (
+              <div className="flex justify-center gap-1 flex-1">
+                {slides.map((_, i) => (
+                  <button
+                    key={i}
+                    onClick={() => setActiveSlide(i)}
+                    className={`w-1.5 h-1.5 rounded-full transition-colors ${
+                      i === activeSlide ? "bg-gray-700" : "bg-gray-300"
+                    }`}
+                  />
+                ))}
+              </div>
+            ) : (
+              <div className="flex-1" />
+            )}
+            {isPending && (
+              <button
+                onClick={() => setShowSlideEditor(true)}
+                className="text-xs text-violet-600 hover:text-violet-800 font-medium shrink-0"
+              >
+                Edit Slides
+              </button>
+            )}
+          </div>
         </div>
+      )}
+
+      {showSlideEditor && (
+        <SlideEditorModal
+          post={{ ...post, slides }}
+          onClose={() => setShowSlideEditor(false)}
+          onSaved={(updatedSlides) => {
+            setSlides(updatedSlides)
+            setActiveSlide(0)
+          }}
+        />
       )}
 
       {/* Caption */}
