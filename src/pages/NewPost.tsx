@@ -1,12 +1,14 @@
 import { useState, useEffect, useRef } from "react"
-import { startResearch, getJob, listPosts } from "../lib/api"
-import type { Job, Post } from "../lib/api"
+import { clarifyTopic, startResearch, getJob, listPosts } from "../lib/api"
+import type { ClarifierQuestion, Job, Post } from "../lib/api"
 import PostCard from "../components/PostCard"
+import ClarifierStep from "../components/ClarifierStep"
 
-type Phase = "idle" | "researching" | "creating" | "analyzing" | "ready" | "failed"
+type Phase = "idle" | "clarifying" | "researching" | "creating" | "analyzing" | "ready" | "failed"
 
 const PHASE_LABELS: Record<Phase, string> = {
   idle: "",
+  clarifying: "Customizing your carousel…",
   researching: "Researching topic…",
   creating: "Creating carousels…",
   analyzing: "Analyzing post quality…",
@@ -23,6 +25,8 @@ export default function NewPost() {
   const [jobId, setJobId] = useState<string | null>(null)
   const [posts, setPosts] = useState<Post[]>([])
   const [error, setError] = useState<string | null>(null)
+  const [clarifierQuestions, setClarifierQuestions] = useState<ClarifierQuestion[]>([])
+  const [usingDefaultFormat, setUsingDefaultFormat] = useState(false)
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   function stopPolling() {
@@ -68,10 +72,41 @@ export default function NewPost() {
 
     setError(null)
     setPosts([])
+    setUsingDefaultFormat(false)
+
+    if (contentType === "educational") {
+      // For educational posts: call clarifier first, show questions before research
+      setPhase("clarifying")
+      try {
+        const questions = await clarifyTopic(trimmed)
+        setClarifierQuestions(questions)
+      } catch {
+        // Clarifier failed — silently skip to research with Format B defaults
+        setClarifierQuestions([])
+        setUsingDefaultFormat(true)
+        await handleLaunchResearch({})
+      }
+    } else {
+      await handleLaunchResearch({})
+    }
+  }
+
+  async function handleLaunchResearch(answers: Record<string, string>) {
+    const trimmed = topic.trim()
+    if (!trimmed) return
+
+    // Extract carousel_format from answers; default to "B" if absent
+    const carouselFormat = answers["format"] ?? (contentType === "educational" ? "B" : undefined)
+
     setPhase("researching")
 
     try {
-      const { job_id } = await startResearch(trimmed, contentType)
+      const { job_id } = await startResearch(
+        trimmed,
+        contentType,
+        carouselFormat,
+        Object.keys(answers).length > 0 ? answers : undefined,
+      )
       setJobId(job_id)
       startPolling(job_id)
     } catch (e) {
@@ -88,9 +123,11 @@ export default function NewPost() {
     setError(null)
     setTopic("")
     setContentType("news")
+    setClarifierQuestions([])
+    setUsingDefaultFormat(false)
   }
 
-  const isRunning = phase !== "idle" && phase !== "ready" && phase !== "failed"
+  const isRunning = phase !== "idle" && phase !== "clarifying" && phase !== "ready" && phase !== "failed"
 
   return (
     <div>
@@ -144,8 +181,24 @@ export default function NewPost() {
         </div>
       </form>
 
+      {/* Clarifier step — shown while waiting for questions or when questions are ready */}
+      {phase === "clarifying" && clarifierQuestions.length > 0 && (
+        <ClarifierStep
+          questions={clarifierQuestions}
+          onSubmit={handleLaunchResearch}
+          onSkip={() => handleLaunchResearch({})}
+        />
+      )}
+
+      {/* "Using default format" note — shown when clarifier was skipped due to failure */}
+      {phase === "clarifying" && clarifierQuestions.length === 0 && !usingDefaultFormat && (
+        <div className="mb-6 flex items-center justify-center py-6 text-sm text-gray-400">
+          <span className="animate-pulse">Loading questions…</span>
+        </div>
+      )}
+
       {/* Pipeline status */}
-      {phase !== "idle" && (
+      {phase !== "idle" && phase !== "clarifying" && (
         <div className="mb-8 bg-gray-50 border border-gray-200 rounded-xl p-5">
           <div className="flex items-center justify-between mb-4">
             <span className="text-sm font-medium text-gray-700">

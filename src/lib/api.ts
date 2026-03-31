@@ -73,6 +73,39 @@ export interface Post {
   pdf_url?: string
   dm_keyword?: string
   content_type?: string
+  carousel_format?: string  // "A" | "B" | "C" — set for educational posts with v5 Phase 2
+}
+
+// ---------------------------------------------------------------------------
+// Clarifier types
+// ---------------------------------------------------------------------------
+
+export interface ClarifierOption {
+  value: string
+  label: string
+}
+
+export interface ClarifierQuestion {
+  id: string
+  text: string
+  options: ClarifierOption[]
+  default: string
+}
+
+// ---------------------------------------------------------------------------
+// Clarifier
+// ---------------------------------------------------------------------------
+
+export async function clarifyTopic(topic: string): Promise<ClarifierQuestion[]> {
+  const res = await fetch(`${BASE}/api/v2/clarify`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ topic }),
+    signal: AbortSignal.timeout(8000),  // 8s timeout — on failure caller shows Skip
+  })
+  if (!res.ok) throw new Error(`clarify → ${res.status}`)
+  const data = await res.json()
+  return data.questions as ClarifierQuestion[]
 }
 
 // ---------------------------------------------------------------------------
@@ -82,8 +115,15 @@ export interface Post {
 export function startResearch(
   topic: string,
   contentType: "news" | "educational" = "news",
+  carouselFormat?: string,
+  clarifierAnswers?: Record<string, string>,
 ): Promise<{ job_id: string }> {
-  return request("POST", "/api/v2/research", { topic, content_type: contentType })
+  return request("POST", "/api/v2/research", {
+    topic,
+    content_type: contentType,
+    ...(carouselFormat !== undefined && { carousel_format: carouselFormat }),
+    ...(clarifierAnswers !== undefined && { clarifier_answers: clarifierAnswers }),
+  })
 }
 
 export function getJob(jobId: string): Promise<Job> {

@@ -86,6 +86,15 @@ export default function PostCard({ post, onUpdate }: Props) {
                 DM: {post.dm_keyword}
               </span>
             )}
+            {post.carousel_format && (
+              <span className="inline-flex items-center gap-1 rounded-full bg-indigo-100 px-2 py-0.5 text-xs font-semibold text-indigo-700">
+                {post.carousel_format === "A"
+                  ? "Mistakes"
+                  : post.carousel_format === "B"
+                  ? "Pillars"
+                  : "Cheat Sheet"}
+              </span>
+            )}
           </div>
         </div>
         <span
