@@ -73,13 +73,18 @@ export default function PostCard({ post, onUpdate }: Props) {
           <h3 className="font-semibold text-gray-900 text-sm leading-snug truncate">
             {post.story.headline}
           </h3>
-          <div className="flex items-center gap-2 mt-1">
+          <div className="flex items-center gap-2 mt-1 flex-wrap">
             <span className="text-xs text-gray-400">{post.story.source}</span>
             {post.story.topic && (
               <>
                 <span className="text-gray-300">·</span>
                 <span className="text-xs text-gray-400">{post.story.topic}</span>
               </>
+            )}
+            {post.dm_keyword && (
+              <span className="inline-flex items-center gap-1 rounded-full bg-purple-100 px-2 py-0.5 text-xs font-semibold text-purple-700">
+                DM: {post.dm_keyword}
+              </span>
             )}
           </div>
         </div>
@@ -137,14 +142,26 @@ export default function PostCard({ post, onUpdate }: Props) {
             ) : (
               <div className="flex-1" />
             )}
-            {isPending && (
-              <button
-                onClick={() => setShowSlideEditor(true)}
-                className="text-xs text-violet-600 hover:text-violet-800 font-medium shrink-0"
-              >
-                Edit Slides
-              </button>
-            )}
+            <div className="flex items-center gap-3 shrink-0">
+              {post.pdf_url && (
+                <a
+                  href={post.pdf_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-xs text-purple-600 hover:text-purple-800 underline"
+                >
+                  View Guide PDF
+                </a>
+              )}
+              {isPending && (
+                <button
+                  onClick={() => setShowSlideEditor(true)}
+                  className="text-xs text-violet-600 hover:text-violet-800 font-medium"
+                >
+                  Edit Slides
+                </button>
+              )}
+            </div>
           </div>
         </div>
       )}

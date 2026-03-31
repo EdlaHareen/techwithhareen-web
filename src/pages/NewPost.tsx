@@ -18,6 +18,7 @@ const PHASE_ORDER: Phase[] = ["researching", "creating", "analyzing", "ready"]
 
 export default function NewPost() {
   const [topic, setTopic] = useState("")
+  const [contentType, setContentType] = useState<"news" | "educational">("news")
   const [phase, setPhase] = useState<Phase>("idle")
   const [jobId, setJobId] = useState<string | null>(null)
   const [posts, setPosts] = useState<Post[]>([])
@@ -70,7 +71,7 @@ export default function NewPost() {
     setPhase("researching")
 
     try {
-      const { job_id } = await startResearch(trimmed)
+      const { job_id } = await startResearch(trimmed, contentType)
       setJobId(job_id)
       startPolling(job_id)
     } catch (e) {
@@ -86,6 +87,7 @@ export default function NewPost() {
     setPosts([])
     setError(null)
     setTopic("")
+    setContentType("news")
   }
 
   const isRunning = phase !== "idle" && phase !== "ready" && phase !== "failed"
@@ -101,14 +103,36 @@ export default function NewPost() {
 
       {/* Topic input */}
       <form onSubmit={handleSubmit} className="mb-8">
+        {/* Content type toggle */}
+        <div className="flex gap-2 mb-3">
+          {(["news", "educational"] as const).map((type) => (
+            <button
+              key={type}
+              type="button"
+              onClick={() => setContentType(type)}
+              disabled={isRunning}
+              className={`px-4 py-1.5 text-sm font-medium rounded-full transition-colors disabled:opacity-50 ${
+                contentType === type
+                  ? "bg-violet-600 text-white"
+                  : "border border-gray-300 text-gray-600 hover:border-violet-400 hover:text-violet-600"
+              }`}
+            >
+              {type.charAt(0).toUpperCase() + type.slice(1)}
+            </button>
+          ))}
+        </div>
         <div className="flex gap-3">
           <input
             type="text"
             value={topic}
             onChange={(e) => setTopic(e.target.value)}
-            placeholder="e.g. AI chip shortage, OpenAI latest news…"
+            placeholder={
+              contentType === "educational"
+                ? "e.g. how to use Claude for work, prompt engineering basics…"
+                : "e.g. AI chip shortage, OpenAI latest news…"
+            }
             disabled={isRunning}
-            className="flex-1 border border-gray-300 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-50 disabled:text-gray-400"
+            className="flex-1 border border-gray-300 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500 disabled:bg-gray-50 disabled:text-gray-400"
           />
           <button
             type="submit"

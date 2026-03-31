@@ -69,14 +69,21 @@ export interface Post {
   created_at: string
   approved_at: string | null
   rejection_reason: string | null
+  // Educational-only fields (undefined for news posts)
+  pdf_url?: string
+  dm_keyword?: string
+  content_type?: string
 }
 
 // ---------------------------------------------------------------------------
 // Research
 // ---------------------------------------------------------------------------
 
-export function startResearch(topic: string): Promise<{ job_id: string }> {
-  return request("POST", "/api/v2/research", { topic })
+export function startResearch(
+  topic: string,
+  contentType: "news" | "educational" = "news",
+): Promise<{ job_id: string }> {
+  return request("POST", "/api/v2/research", { topic, content_type: contentType })
 }
 
 export function getJob(jobId: string): Promise<Job> {
