@@ -27,7 +27,7 @@ export default function ClarifierStep({ questions, onSubmit, onSkip }: Props) {
   }
 
   function handleSkip() {
-    onSubmit(defaultAnswers)
+    onSkip()
   }
 
   return (
