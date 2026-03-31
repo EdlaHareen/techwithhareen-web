@@ -75,14 +75,20 @@ export default function NewPost() {
     setUsingDefaultFormat(false)
 
     if (contentType === "educational") {
-      // For educational posts: call clarifier first, show questions before research
+      // For educational posts: call clarifier first, show questions before research fires
       setPhase("clarifying")
       try {
         const questions = await clarifyTopic(trimmed)
-        setClarifierQuestions(questions)
+        if (questions && questions.length > 0) {
+          setClarifierQuestions(questions)
+          // Stay in "clarifying" phase — user must click Generate or Skip
+        } else {
+          // API returned empty questions — skip to Format B defaults
+          setUsingDefaultFormat(true)
+          await handleLaunchResearch({})
+        }
       } catch {
-        // Clarifier failed — silently skip to research with Format B defaults
-        setClarifierQuestions([])
+        // Clarifier failed — skip to Format B defaults with a note
         setUsingDefaultFormat(true)
         await handleLaunchResearch({})
       }
@@ -190,10 +196,12 @@ export default function NewPost() {
         />
       )}
 
-      {/* "Using default format" note — shown when clarifier was skipped due to failure */}
-      {phase === "clarifying" && clarifierQuestions.length === 0 && !usingDefaultFormat && (
+      {/* Loading state — shown while waiting for clarifier API response */}
+      {phase === "clarifying" && clarifierQuestions.length === 0 && (
         <div className="mb-6 flex items-center justify-center py-6 text-sm text-gray-400">
-          <span className="animate-pulse">Loading questions…</span>
+          <span className="animate-pulse">
+            {usingDefaultFormat ? "Using default format (Pillars)…" : "Loading questions…"}
+          </span>
         </div>
       )}
 
