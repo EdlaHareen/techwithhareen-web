@@ -101,7 +101,7 @@ export async function clarifyTopic(topic: string): Promise<ClarifierQuestion[]> 
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ topic }),
-    signal: AbortSignal.timeout(8000),  // 8s timeout — on failure caller shows Skip
+    signal: AbortSignal.timeout(20000),  // 20s timeout — thinking model needs ~10s
   })
   if (!res.ok) throw new Error(`clarify → ${res.status}`)
   const data = await res.json()
