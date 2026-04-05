@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react"
-import { clarifyTopic, startResearch, getJob, listPosts } from "../lib/api"
+import { clarifyTopic, startResearch, getJob, listPosts, getPreferences, updatePreferences } from "../lib/api"
 import type { ClarifierQuestion, Job, Post } from "../lib/api"
 import PostCard from "../components/PostCard"
 import ClarifierStep from "../components/ClarifierStep"
@@ -18,16 +18,52 @@ const PHASE_LABELS: Record<Phase, string> = {
 
 const PHASE_ORDER: Phase[] = ["researching", "creating", "analyzing", "ready"]
 
+const TEMPLATE_OPTIONS = [
+  { id: "dark_tech", label: "Dark Tech", color: "bg-gray-900" },
+  { id: "clean_light", label: "Clean Light", color: "bg-gray-100" },
+] as const
+
+const FORMAT_OPTIONS = [
+  { id: "news", label: "News" },
+  { id: "A", label: "Mistakes" },
+  { id: "B", label: "Pillars" },
+  { id: "C", label: "Cheat Sheet" },
+  { id: "listicle", label: "Listicle" },
+] as const
+
 export default function NewPost() {
   const [topic, setTopic] = useState("")
   const [contentType, setContentType] = useState<"news" | "educational">("news")
+  const [templateId, setTemplateId] = useState("dark_tech")
+  const [formatId, setFormatId] = useState("news")
   const [phase, setPhase] = useState<Phase>("idle")
   const [jobId, setJobId] = useState<string | null>(null)
   const [posts, setPosts] = useState<Post[]>([])
   const [error, setError] = useState<string | null>(null)
   const [clarifierQuestions, setClarifierQuestions] = useState<ClarifierQuestion[]>([])
   const [usingDefaultFormat, setUsingDefaultFormat] = useState(false)
+  const [prefsLoaded, setPrefsLoaded] = useState(false)
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
+
+  // Fetch saved preferences on mount
+  useEffect(() => {
+    getPreferences()
+      .then(({ preferences }) => {
+        if (preferences.default_template) setTemplateId(preferences.default_template)
+        if (preferences.default_format) setFormatId(preferences.default_format)
+        setPrefsLoaded(true)
+      })
+      .catch(() => setPrefsLoaded(true)) // silently use defaults
+  }, [])
+
+  // Sync contentType from formatId
+  useEffect(() => {
+    if (formatId === "news" || formatId === "listicle") {
+      setContentType("news")
+    } else {
+      setContentType("educational")
+    }
+  }, [formatId])
 
   function stopPolling() {
     if (pollRef.current) {
@@ -74,21 +110,18 @@ export default function NewPost() {
     setPosts([])
     setUsingDefaultFormat(false)
 
-    if (contentType === "educational") {
-      // For educational posts: call clarifier first, show questions before research fires
+    // Educational formats (A/B/C) use the clarifier flow
+    if (contentType === "educational" && formatId !== "listicle") {
       setPhase("clarifying")
       try {
         const questions = await clarifyTopic(trimmed)
         if (questions && questions.length > 0) {
           setClarifierQuestions(questions)
-          // Stay in "clarifying" phase — user must click Generate or Skip
         } else {
-          // API returned empty questions — skip to Format B defaults
           setUsingDefaultFormat(true)
           await handleLaunchResearch({})
         }
       } catch {
-        // Clarifier failed — skip to Format B defaults with a note
         setUsingDefaultFormat(true)
         await handleLaunchResearch({})
       }
@@ -101,8 +134,13 @@ export default function NewPost() {
     const trimmed = topic.trim()
     if (!trimmed) return
 
-    // Extract carousel_format from answers; default to "B" if absent
-    const carouselFormat = answers["format"] ?? (contentType === "educational" ? "B" : undefined)
+    // Determine carousel format
+    let carouselFormat: string | undefined
+    if (formatId === "listicle") {
+      carouselFormat = "listicle"
+    } else if (contentType === "educational") {
+      carouselFormat = answers["format"] ?? formatId
+    }
 
     setPhase("researching")
 
@@ -112,6 +150,7 @@ export default function NewPost() {
         contentType,
         carouselFormat,
         Object.keys(answers).length > 0 ? answers : undefined,
+        templateId,
       )
       setJobId(job_id)
       startPolling(job_id)
@@ -128,9 +167,16 @@ export default function NewPost() {
     setPosts([])
     setError(null)
     setTopic("")
-    setContentType("news")
     setClarifierQuestions([])
     setUsingDefaultFormat(false)
+  }
+
+  async function handleSaveDefaults() {
+    try {
+      await updatePreferences(templateId, formatId)
+    } catch {
+      // silent — preferences are optional
+    }
   }
 
   const isRunning = phase !== "idle" && phase !== "clarifying" && phase !== "ready" && phase !== "failed"
@@ -146,31 +192,72 @@ export default function NewPost() {
 
       {/* Topic input */}
       <form onSubmit={handleSubmit} className="mb-8">
-        {/* Content type toggle */}
-        <div className="flex gap-2 mb-3">
-          {(["news", "educational"] as const).map((type) => (
-            <button
-              key={type}
-              type="button"
-              onClick={() => setContentType(type)}
-              disabled={isRunning}
-              className={`px-4 py-1.5 text-sm font-medium rounded-full transition-colors disabled:opacity-50 ${
-                contentType === type
-                  ? "bg-violet-600 text-white"
-                  : "border border-gray-300 text-gray-600 hover:border-violet-400 hover:text-violet-600"
-              }`}
-            >
-              {type.charAt(0).toUpperCase() + type.slice(1)}
-            </button>
-          ))}
+        {/* Template selector */}
+        <div className="mb-4">
+          <label className="block text-xs font-medium text-gray-500 mb-1.5">Template</label>
+          <div className="flex gap-2">
+            {TEMPLATE_OPTIONS.map((t) => (
+              <button
+                key={t.id}
+                type="button"
+                onClick={() => setTemplateId(t.id)}
+                disabled={isRunning}
+                className={`flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg transition-colors disabled:opacity-50 ${
+                  templateId === t.id
+                    ? "ring-2 ring-violet-500 bg-white shadow-sm"
+                    : "border border-gray-200 text-gray-600 hover:border-violet-300"
+                }`}
+              >
+                <span className={`w-4 h-4 rounded-full ${t.color} border border-gray-300`} />
+                {t.label}
+              </button>
+            ))}
+          </div>
         </div>
+
+        {/* Format selector */}
+        <div className="mb-4">
+          <label className="block text-xs font-medium text-gray-500 mb-1.5">Format</label>
+          <div className="flex flex-wrap gap-2">
+            {FORMAT_OPTIONS.map((f) => (
+              <button
+                key={f.id}
+                type="button"
+                onClick={() => setFormatId(f.id)}
+                disabled={isRunning}
+                className={`px-4 py-1.5 text-sm font-medium rounded-full transition-colors disabled:opacity-50 ${
+                  formatId === f.id
+                    ? "bg-violet-600 text-white"
+                    : "border border-gray-300 text-gray-600 hover:border-violet-400 hover:text-violet-600"
+                }`}
+              >
+                {f.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Save as defaults button */}
+        {prefsLoaded && (
+          <button
+            type="button"
+            onClick={handleSaveDefaults}
+            disabled={isRunning}
+            className="text-xs text-gray-400 hover:text-violet-600 mb-3 transition-colors disabled:opacity-50"
+          >
+            Save as defaults
+          </button>
+        )}
+
         <div className="flex gap-3">
           <input
             type="text"
             value={topic}
             onChange={(e) => setTopic(e.target.value)}
             placeholder={
-              contentType === "educational"
+              formatId === "listicle"
+                ? "e.g. best AI coding tools, top open-source repos for DevOps…"
+                : contentType === "educational"
                 ? "e.g. how to use Claude for work, prompt engineering basics…"
                 : "e.g. AI chip shortage, OpenAI latest news…"
             }

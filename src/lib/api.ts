@@ -55,6 +55,7 @@ export interface RenderData {
   hook_stat_label: string
   source_url: string | null
   image_url: string | null
+  template_id?: string
 }
 
 export interface Post {
@@ -73,7 +74,8 @@ export interface Post {
   pdf_url?: string
   dm_keyword?: string
   content_type?: string
-  carousel_format?: string  // "A" | "B" | "C" — set for educational posts with v5 Phase 2
+  carousel_format?: string  // "A" | "B" | "C" | "listicle"
+  template_id?: string      // "dark_tech" | "clean_light"
 }
 
 // ---------------------------------------------------------------------------
@@ -117,12 +119,41 @@ export function startResearch(
   contentType: "news" | "educational" = "news",
   carouselFormat?: string,
   clarifierAnswers?: Record<string, string>,
+  templateId: string = "dark_tech",
 ): Promise<{ job_id: string }> {
   return request("POST", "/api/v2/research", {
     topic,
     content_type: contentType,
+    template_id: templateId,
     ...(carouselFormat !== undefined && { carousel_format: carouselFormat }),
     ...(clarifierAnswers !== undefined && { clarifier_answers: clarifierAnswers }),
+  })
+}
+
+// ---------------------------------------------------------------------------
+// Preferences
+// ---------------------------------------------------------------------------
+
+export interface Preferences {
+  default_template: string
+  default_format: string
+}
+
+export function getPreferences(): Promise<{
+  preferences: Preferences
+  available_templates: string[]
+  available_formats: string[]
+}> {
+  return request("GET", "/api/v2/preferences")
+}
+
+export function updatePreferences(
+  defaultTemplate?: string,
+  defaultFormat?: string,
+): Promise<{ status: string }> {
+  return request("PATCH", "/api/v2/preferences", {
+    ...(defaultTemplate !== undefined && { default_template: defaultTemplate }),
+    ...(defaultFormat !== undefined && { default_format: defaultFormat }),
   })
 }
 

@@ -92,7 +92,16 @@ export default function PostCard({ post, onUpdate }: Props) {
                   ? "Mistakes"
                   : post.carousel_format === "B"
                   ? "Pillars"
-                  : "Cheat Sheet"}
+                  : post.carousel_format === "C"
+                  ? "Cheat Sheet"
+                  : post.carousel_format === "listicle"
+                  ? "Listicle"
+                  : post.carousel_format}
+              </span>
+            )}
+            {post.template_id && post.template_id !== "dark_tech" && (
+              <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-700">
+                {post.template_id === "clean_light" ? "Clean Light" : post.template_id}
               </span>
             )}
           </div>
